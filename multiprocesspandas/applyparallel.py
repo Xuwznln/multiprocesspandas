@@ -14,6 +14,9 @@ from multiprocess import Pool
 import functools
 from os import cpu_count
 
+from tqdm import tqdm
+
+
 def attachpandas():
     pd.core.groupby.generic.DataFrameGroupBy.apply_parallel = group_apply_parallel
     pd.core.series.Series.apply_parallel = series_apply_parallel
@@ -26,7 +29,7 @@ def group_apply_parallel(self, func, *static_data, num_processes=cpu_count(), **
     """
     func = functools.partial(func, *static_data, **kwargs)
     with Pool(num_processes) as p:
-        ret_list = p.map(func, [df.copy() for idx, df in self])
+        ret_list = list(tqdm(p.imap(func, [df.copy() for idx, df in self])))
 
     if isinstance(ret_list[0], pd.DataFrame):
         return pd.concat(ret_list, keys=[idx for idx, df in self],names=self.keys, axis=0)
@@ -46,7 +49,7 @@ def series_apply_parallel(self, func, *static_data, num_processes=cpu_count(), *
     """        
     func = functools.partial(func, *static_data, **kwargs)
     with Pool(num_processes) as p:
-        ret_list = p.map(func, self.values.tolist())
+        ret_list = list(tqdm(p.imap(func, self.values.tolist()), total=len(self.values)))
 
     if isinstance(ret_list[0], pd.DataFrame):
         return pd.concat(ret_list, keys=self.index,names=self.index.name, axis=0)
@@ -65,9 +68,9 @@ def df_apply_parallel(self, func, *static_data, num_processes=cpu_count(), axis=
     func = functools.partial(func, *static_data, **kwargs)
     with Pool(num_processes) as p:
         if axis==0:
-            ret_list = p.map(func, [row for _, row in self.iterrows()])
+            ret_list = list(tqdm(p.imap(func, [row for _, row in self.iterrows()])))
         elif axis==1:
-            ret_list = p.map(func, [col for _, col in self.items()])
+            ret_list = list(tqdm(p.imap(func, [col for _, col in self.items()])))
     if isinstance(ret_list[0], pd.DataFrame):
         if axis==0:
             return pd.concat(ret_list, keys=self.index,names=self.index.name, axis=0)
